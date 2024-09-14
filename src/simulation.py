@@ -1,17 +1,37 @@
-from scipy.integrate import odeint
 import numpy as np
+from scipy.integrate import odeint
 
-# Modelo acoplado: van der Pol + oscilador estrutural
-def coupled_oscillator(y, t, mu, delta, gamma):
+# Função s(q) com base na equação (3.7)
+def s(q, U, D, St, m):
+    # Aplicando a equação fornecida
+    return (D * q) / (4 * np.pi**2 * St**2 * U**2 * m)
+
+# Função que define o sistema acoplado (corrigido para receber todos os parâmetros)
+def coupled_oscillator(y, t, gamma, delta, mu, Omega_f, epsilon, U, D, St, m):
+    # Variáveis de estado
     y1, dy1_dt, q, dq_dt = y
-    dy2_dt = q - 2 * delta * gamma * dy1_dt - delta**2 * y1
-    dq2_dt = mu * (1 - q**2) * dq_dt - q
+
+    # Equações diferenciais acopladas do modelo
+    dy2_dt = -(2 * gamma + (gamma / mu) * Omega_f) * dy1_dt - delta ** 2 * y1 + s(q, U, D, St, m)
+    dq2_dt = -epsilon * (q ** 2 - 1) * dq_dt - Omega_f * q + dy1_dt
+
     return [dy1_dt, dy2_dt, dq_dt, dq2_dt]
 
-# Função de simulação do ambiente com parâmetros µ, δ, γ
-def environment_simulation(state, mu, delta, gamma, initial_conditions):
+# Função de simulação do ambiente (corrigido)
+def environment_simulation(state, gamma, delta, mu, Omega_f, epsilon, initial_conditions, U, D, St, m):
     t = np.linspace(0, 10, 100)  # Tempo de simulação
-    solution = odeint(coupled_oscillator, initial_conditions, t, args=(mu, delta, gamma))
+    # Solução numérica da ODE com as condições iniciais e os parâmetros ajustados
+    solution = odeint(coupled_oscillator, initial_conditions, t, args=(gamma, delta, mu, Omega_f, epsilon, U, D, St, m))
 
-    y = solution[:, 0]  # Considerar o movimento y para a amplitude de oscilação
+    # Verificar se a solução é 1D ou 2D
+    if solution.ndim == 2:
+        # Se for 2D, extraímos as variáveis de estado
+        y, dy_dt, q, dq_dt = solution.T
+    else:
+        # Se for 1D, extraímos diretamente
+        y = solution[0]
+        dy_dt = solution[1]
+        q = solution[2]
+        dq_dt = solution[3]
+
     return y
