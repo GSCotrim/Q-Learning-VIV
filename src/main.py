@@ -1,4 +1,5 @@
 import os
+
 import matplotlib.pyplot as plt
 import pandas as pd
 
@@ -36,7 +37,7 @@ def initialize_agent():
     return QLearningAgent(alpha=0.05, gamma=0.95, epsilon=0.2)
 
 
-def run_q_learning(agent, initial_conditions, t, target_response, episodes=5000):
+def run_q_learning(agent, initial_conditions, t, target_response, episodes=15000):
     total_rewards, q_table = agent.run(initial_conditions, t, target_response, episodes)
     return total_rewards, q_table
 
@@ -70,7 +71,7 @@ def run_q_learning_process():
     print(
         f"Parâmetros ajustados após o treinamento refinado: y={final_params_refined[0]}, y_dot={final_params_refined[1]}, q={final_params_refined[2]}, q_dot={final_params_refined[3]}")
 
-    simulated_response_final_refined = simulate_system(final_params_refined, initial_conditions, t)
+    simulated_response_final_refined = simulate_system(final_params_refined, initial_conditions, t, target_response)
     plot_results(total_rewards, t, simulated_response_final_refined, target_response)
 
 

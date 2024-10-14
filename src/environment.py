@@ -36,36 +36,36 @@ def compute_system_dynamics(yq, params):
     return [dydt, dydt_dot, dqdt, dqdt_dot]
 
 
-def simulate_system(params: list, initial_conditions: list, time_vector: np.ndarray) -> np.ndarray:
-    num_steps = len(time_vector)
-    y = np.zeros(num_steps)
-    y_dot = np.zeros(num_steps)
-    q = np.zeros(num_steps)
-    q_dot = np.zeros(num_steps)
-
-    if len(initial_conditions) == 4:
-        y0, y_dot0, q0, q_dot0 = initial_conditions
-    elif isinstance(initial_conditions[0], (list, tuple)) and len(initial_conditions[0]) == 4:
+def simulate_system(params: list, initial_conditions: list, time_vector: np.ndarray,
+                    target_response: np.ndarray) -> np.ndarray:
+    if isinstance(initial_conditions[0], (list, tuple)) and len(initial_conditions[0]) == 4:
         y0, y_dot0, q0, q_dot0 = initial_conditions[0]
     else:
-        raise ValueError("Formato inesperado de initial_conditions.")
+        raise ValueError("initial_conditions tem um formato inesperado. Esperava uma lista ou tupla de 4 valores.")
 
-    delta_t = time_vector[1] - time_vector[0]
+    y0 = target_response[0]
+    y = np.zeros_like(time_vector)
+    y_dot = np.zeros_like(time_vector)
+    q = np.zeros_like(time_vector)
+    q_dot = np.zeros_like(time_vector)
+
     y[0], y_dot[0], q[0], q_dot[0] = y0, y_dot0, q0, q_dot0
+    epsilon, delta, gamma, mu, s, f, xi = params
 
-    for i in range(1, num_steps):
-        yq = [y[i - 1], y_dot[i - 1], q[i - 1], q_dot[i - 1]]
-        dydt, dydt_dot, dqdt, dqdt_dot = compute_system_dynamics(yq, params)
-        y[i] = y[i - 1] + dydt * delta_t
-        y_dot[i] = y_dot[i - 1] + dydt_dot * delta_t
-        q[i] = q[i - 1] + dqdt * delta_t
-        q_dot[i] = q_dot[i - 1] + dqdt_dot * delta_t
+    for i in range(1, len(time_vector)):
+        dydt, dydt_dot = compute_dydt(y[i - 1], y_dot[i - 1], delta, gamma, mu, s, xi)
+        dqdt, dqdt_dot = compute_dqdt(q[i - 1], q_dot[i - 1], epsilon, f)
+
+        y[i] = y[i - 1] + dydt * (time_vector[i] - time_vector[i - 1])
+        y_dot[i] = y_dot[i - 1] + dydt_dot * (time_vector[i] - time_vector[i - 1])
+        q[i] = q[i - 1] + dqdt * (time_vector[i] - time_vector[i - 1])
+        q_dot[i] = q_dot[i - 1] + dqdt_dot * (time_vector[i] - time_vector[i - 1])
 
     return np.array([y, y_dot, q, q_dot]).T
 
 
 def compute_dominant_frequency(response: np.ndarray, time_vector: np.ndarray) -> ndarray[Any, dtype[floating[Any]]]:
-    response = response[:, 0] if response.ndim > 1 else response  # Ensure response is 1D
+    response = response[:, 0] if response.ndim > 1 else response
     response_fft = fft(response)
     freqs = np.fft.fftfreq(len(response), d=(time_vector[1] - time_vector[0]))
     dominant_freq = freqs[np.argmax(np.abs(response_fft))]
@@ -84,8 +84,7 @@ def compute_frequency_difference(simulated_response, target_response, time_vecto
 
 def compute_reward(simulated_response, target_response, time_vector):
     mse = np.mean((simulated_response[:, 0] - target_response) ** 2)
-    amplitude_variance = np.var(simulated_response[:, 0])
+    amplitude_difference = np.abs(np.mean(simulated_response[:, 0]) - np.mean(target_response))
     freq_difference = compute_frequency_difference(simulated_response, target_response, time_vector)
-    reward = -(mse + 0.1 * amplitude_variance + 0.5 * freq_difference)
+    reward = -(mse + 1.0 * amplitude_difference + 0.5 * freq_difference)
     return reward
-
