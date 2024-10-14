@@ -31,19 +31,25 @@ def compute_system_dynamics(yq, params):
     return [dydt, dydt_dot, dqdt, dqdt_dot]
 
 
-def simulate_system(params: List[float], initial_conditions: List[float], t: np.ndarray) -> np.ndarray:
-    # Simulate the system using a simplified model
-    y = initial_conditions[0] + params[0] * np.sin(t)
-    y_dot = initial_conditions[1] + params[1] * np.cos(t)
-    q = initial_conditions[2] + params[2] * np.sin(t)
-    q_dot = initial_conditions[3] + params[3] * np.cos(t)
+def simulate_system(params: List[float], initial_conditions: List[float], time_vector: np.ndarray) -> np.ndarray:
+    y = np.zeros_like(time_vector)
+    y_dot = np.zeros_like(time_vector)
+    q = np.zeros_like(time_vector)
+    q_dot = np.zeros_like(time_vector)
+
+    for i in range(len(time_vector)):
+        y[i] = initial_conditions[i][0] + params[0] * np.sin(time_vector[i])
+        y_dot[i] = initial_conditions[i][1] + params[1] * np.cos(time_vector[i])
+        q[i] = initial_conditions[i][2] + params[2] * np.sin(time_vector[i])
+        q_dot[i] = initial_conditions[i][3] + params[3] * np.cos(time_vector[i])
+
     return np.array([y, y_dot, q, q_dot]).T
 
 
-def compute_dominant_frequency(response: np.ndarray, t: np.ndarray) -> ndarray[Any, dtype[floating[Any]]]:
+def compute_dominant_frequency(response: np.ndarray, time_vector: np.ndarray) -> ndarray[Any, dtype[floating[Any]]]:
     response = response[:, 0] if response.ndim > 1 else response  # Ensure response is 1D
     response_fft = fft(response)
-    freqs = np.fft.fftfreq(len(response), d=(t[1] - t[0]))
+    freqs = np.fft.fftfreq(len(response), d=(time_vector[1] - time_vector[0]))
     dominant_freq = freqs[np.argmax(np.abs(response_fft))]
     return dominant_freq
 
@@ -52,14 +58,14 @@ def compute_amplitude_variance(simulated_response):
     return np.var(simulated_response[:, 0]) if simulated_response.ndim > 1 else np.var(simulated_response)
 
 
-def compute_frequency_difference(simulated_response, target_response, t):
-    simulated_freq = compute_dominant_frequency(simulated_response, t)
-    target_freq = compute_dominant_frequency(target_response, t)
+def compute_frequency_difference(simulated_response, target_response, time_vector):
+    simulated_freq = compute_dominant_frequency(simulated_response, time_vector)
+    target_freq = compute_dominant_frequency(target_response, time_vector)
     return np.abs(simulated_freq - target_freq)
 
 
-def compute_reward(simulated_response, target_response, t):
+def compute_reward(simulated_response, target_response, time_vector):
     amplitude_variance = compute_amplitude_variance(simulated_response)
-    freq_difference = compute_frequency_difference(simulated_response, target_response, t)
+    freq_difference = compute_frequency_difference(simulated_response, target_response, time_vector)
     reward = -(amplitude_variance + freq_difference)
     return reward

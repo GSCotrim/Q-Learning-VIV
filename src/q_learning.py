@@ -33,26 +33,26 @@ class QLearningAgent:
             self.q_table[next_state] = {i: 0 for i in range(4)}
         return next_state
 
-    def __compute_reward_and_next_state(self, new_params, initial_conditions, t, target_response):
-        simulated_response = simulate_system(new_params, initial_conditions, t)
-        reward = compute_reward(simulated_response, target_response, t)
+    def __compute_reward_and_next_state(self, new_params, initial_conditions, time_vector, target_response):
+        simulated_response = simulate_system(new_params, initial_conditions, time_vector)
+        reward = compute_reward(simulated_response, target_response, time_vector)
         next_state = self.__determine_next_state(new_params)
         return reward, next_state
 
-    def __take_action(self, state, initial_conditions, t, target_response):
+    def __take_action(self, state, initial_conditions, time_vector, target_response):
         self.__initialize_q_values(state)
         action = self.__select_action(state)
         new_params = self.__generate_new_params(state, action)
-        reward, next_state = self.__compute_reward_and_next_state(new_params, initial_conditions, t, target_response)
+        reward, next_state = self.__compute_reward_and_next_state(new_params, initial_conditions, time_vector, target_response)
         self.__update_q_value(state, action, reward, next_state)
         return next_state, reward
 
-    def __run_episode(self, initial_conditions, t, target_response):
+    def __run_episode(self, initial_conditions, time_vector, target_response):
         state = self.__initialize_state(initial_conditions)
         total_reward = 0
         done = False
         while not done:
-            state, reward = self.__take_action(state, initial_conditions, t, target_response)
+            state, reward = self.__take_action(state, initial_conditions, time_vector, target_response)
             total_reward += reward
             done = self.__is_done(total_reward)
         return total_reward
@@ -64,15 +64,15 @@ class QLearningAgent:
         return total_reward > -1.0
 
     def __generate_new_params(self, state, action):
-        new_params = list(state)
+        new_params = list(state[action])
         new_params[action] += random.uniform(-0.05, 0.05)
-        return new_params
+        return tuple(new_params)
 
-    def run(self, initial_conditions, t, target_response, episodes=5000):
+    def run(self, initial_conditions, time_vector, target_response, episodes=5000):
         total_rewards = []
         with tqdm(total=episodes, desc="Q-Learning Progress", dynamic_ncols=True) as pbar:
             for _ in range(episodes):
-                total_reward = self.__run_episode(initial_conditions, t, target_response)
+                total_reward = self.__run_episode(initial_conditions, time_vector, target_response)
                 total_rewards.append(total_reward)
                 pbar.update(1)
         return np.array(total_rewards), self.q_table
