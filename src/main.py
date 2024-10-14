@@ -33,7 +33,7 @@ def load_data(file_path):
 
 
 def initialize_agent():
-    return QLearningAgent(alpha=0.1, gamma=0.9, epsilon=0.1)
+    return QLearningAgent(alpha=0.05, gamma=0.95, epsilon=0.2)
 
 
 def run_q_learning(agent, initial_conditions, t, target_response, episodes=5000):
