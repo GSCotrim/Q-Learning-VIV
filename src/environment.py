@@ -36,31 +36,42 @@ def compute_system_dynamics(yq, params):
     return [dydt, dydt_dot, dqdt, dqdt_dot]
 
 
-def simulate_system(params: list, initial_conditions: list, time_vector: np.ndarray,
-                    target_response: np.ndarray) -> np.ndarray:
-    if isinstance(initial_conditions[0], (list, tuple)) and len(initial_conditions[0]) == 4:
-        y0, y_dot0, q0, q_dot0 = initial_conditions[0]
-    else:
-        raise ValueError("initial_conditions tem um formato inesperado. Esperava uma lista ou tupla de 4 valores.")
+def simulate_system(params, initial_conditions, time_vector):
+    # Certifique-se de que initial_conditions contém pelo menos 4 valores (y, y_dot, q, q_dot)
+    if len(initial_conditions) < 4:
+        raise ValueError(f"Condições iniciais devem conter pelo menos 4 valores, mas recebeu {len(initial_conditions)}")
 
-    y0 = target_response[0]
+    # Extrair as condições iniciais relevantes (ignorando os outros parâmetros extras)
+    y0, y_dot0, q0, q_dot0 = initial_conditions[:4]
+
+    # Inicializar os vetores para armazenar os dados ao longo do tempo
     y = np.zeros_like(time_vector)
     y_dot = np.zeros_like(time_vector)
     q = np.zeros_like(time_vector)
     q_dot = np.zeros_like(time_vector)
 
+    # Definir as condições iniciais
     y[0], y_dot[0], q[0], q_dot[0] = y0, y_dot0, q0, q_dot0
+
+    # Verificar se params tem 7 valores (epsilon, delta, gamma, mu, s, f, xi)
+    if len(params) != 7:
+        raise ValueError(f"Esperado 7 parâmetros, mas recebeu {len(params)}")
+
+    # Extrair os parâmetros
     epsilon, delta, gamma, mu, s, f, xi = params
 
+    # Simular a dinâmica ao longo do tempo
     for i in range(1, len(time_vector)):
         dydt, dydt_dot = compute_dydt(y[i - 1], y_dot[i - 1], delta, gamma, mu, s, xi)
         dqdt, dqdt_dot = compute_dqdt(q[i - 1], q_dot[i - 1], epsilon, f)
 
-        y[i] = y[i - 1] + dydt * (time_vector[i] - time_vector[i - 1])
-        y_dot[i] = y_dot[i - 1] + dydt_dot * (time_vector[i] - time_vector[i - 1])
-        q[i] = q[i - 1] + dqdt * (time_vector[i] - time_vector[i - 1])
-        q_dot[i] = q_dot[i - 1] + dqdt_dot * (time_vector[i] - time_vector[i - 1])
+        dt = time_vector[i] - time_vector[i - 1]
+        y[i] = y[i - 1] + dydt * dt
+        y_dot[i] = y_dot[i - 1] + dydt_dot * dt
+        q[i] = q[i - 1] + dqdt * dt
+        q_dot[i] = q_dot[i - 1] + dqdt_dot * dt
 
+    # Retornar a trajetória simulada
     return np.array([y, y_dot, q, q_dot]).T
 
 
@@ -85,6 +96,8 @@ def compute_frequency_difference(simulated_response, target_response, time_vecto
 def compute_reward(simulated_response, target_response, time_vector):
     mse = np.mean((simulated_response[:, 0] - target_response) ** 2)
     amplitude_difference = np.abs(np.mean(simulated_response[:, 0]) - np.mean(target_response))
-    freq_difference = compute_frequency_difference(simulated_response, target_response, time_vector)
-    reward = -(mse + 1.0 * amplitude_difference + 0.5 * freq_difference)
+
+    # Exclui temporariamente a penalidade de forma
+    reward = -(mse + 0.5 * amplitude_difference)
     return reward
+
