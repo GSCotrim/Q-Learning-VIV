@@ -11,7 +11,7 @@ def generate_new_params(state, action):
 
     new_params = list(state)
     if action < len(new_params):
-        new_params[action] += random.uniform(-0.01, 0.01)
+        new_params[action] += random.uniform(-0.05, 0.05)
     else:
         raise ValueError(f"Ação {action} inválida. O número de parâmetros é {len(new_params)}.")
 
@@ -20,7 +20,7 @@ def generate_new_params(state, action):
 
 def compute_reward_and_next_state(new_params, time, target_response):
     simulated_response = simulate_system(new_params, time)
-    reward = compute_reward(simulated_response, target_response)
+    reward = compute_reward(simulated_response, target_response, time)
     next_state = tuple(new_params)
     return reward, next_state
 
@@ -69,7 +69,7 @@ class QLearningAgent:
 
             return state, -1
 
-    def run(self, time, target_response, episodes=15000):
+    def run(self, time, target_response, episodes):
         total_rewards = []
         state = self.initial_conditions
 
@@ -80,7 +80,7 @@ class QLearningAgent:
                 action = self.__select_action(state)
                 new_params = generate_new_params(state, action)
                 simulated_response = simulate_system(new_params, time)
-                reward = compute_reward(simulated_response, target_response)
+                reward = compute_reward(simulated_response, target_response, time)
                 total_reward += reward
                 self.__update_q_value(state, action, reward, new_params)
                 state = new_params

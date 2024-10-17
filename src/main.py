@@ -28,6 +28,7 @@ def plot_results(total_rewards, t, simulated_response_final_refined, target_resp
     plt.plot(total_rewards, label="Total Rewards")
     plt.xlabel("Episodes")
     plt.ylabel("Total Reward")
+    # plt.yscale('log')
     plt.title("Evolution of Total Rewards During Training")
     plt.legend()
     plt.show()

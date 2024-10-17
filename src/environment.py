@@ -3,8 +3,10 @@ from typing import Any
 import numpy as np
 from numpy import ndarray, dtype, floating
 from scipy.fft import fft
+from scipy.integrate import odeint
 
 initial_conditions = (0,) * 7
+
 
 def compute_dydt(y, y_dot, delta, gamma, mu, s, xi):
     mu = max(mu, 1e-3)
@@ -21,49 +23,29 @@ def compute_dqdt(q, q_dot, epsilon, f):
 
 
 def compute_system_dynamics(yq, params):
-    y, y_dot, q, q_dot = yq
-    if len(params) == 4:
-        epsilon, delta, gamma, mu = params
-        s, f, xi = 0, 0, 0
-    elif len(params) == 5:
-        epsilon, delta, gamma, mu, xi = params
-        s, f = 0, 0
-    elif len(params) == 7:
-        epsilon, delta, gamma, mu, s, f, xi = params
-    else:
-        raise ValueError(f"Número incorreto de parâmetros. Esperado 4, 5 ou 7, mas recebeu {len(params)}.")
-
-    dydt, dydt_dot = compute_dydt(y, y_dot, delta, gamma, mu, s, xi)
-    dqdt, dqdt_dot = compute_dqdt(q, q_dot, epsilon, f)
-
-    return [dydt, dydt_dot, dqdt, dqdt_dot]
-
-
-def simulate_system(params, time):
     epsilon, delta, gamma, mu, s, f, xi = params
     mu = max(mu, 1e-6)
 
-    y0, y_dot0, q0, q_dot0 = initial_conditions[:4]
+    y, y_dot, q, q_dot = yq
 
-    y = np.zeros_like(time)
-    q = np.zeros_like(time)
+    dydt_dot = -(2 * xi * delta + (gamma / mu)) * y_dot - (delta ** 2) * y + s
+    dqdt_dot = - epsilon * ((q ** 2) - 1) * q_dot - q + f
 
-    y[0], q[0] = y0, q0
+    return [y_dot, dydt_dot, q_dot, dqdt_dot]
 
-    for i in range(1, len(time)):
-        dt = time[i] - time[i - 1]
 
-        dydt_dot = -(2 * xi * delta + (gamma / mu)) * y_dot0 - (delta ** 2) * y0 + s
+def simulate_system(params, time):
+    initial_state = [0.0, 0.0, 0.0, 0.0]
+    try:
+        system_dynamics = lambda yq, t: compute_system_dynamics(yq, params)
+        solution = odeint(system_dynamics, initial_state, time, atol=1e-7, rtol=1e-5, hmin=1e-5)
+        if np.any(np.isnan(solution)) or np.any(np.isinf(solution)):
+            raise ValueError("A solução contém valores inválidos.")
 
-        dqdt_dot = - epsilon * ((q0 ** 2) - 1) * q_dot0 - q0 + f
-
-        y[i] = y0 + dydt_dot * dt
-        q[i] = q0 + dqdt_dot * dt
-
-        y0, y_dot0 = y[i], dydt_dot
-        q0, q_dot0 = q[i], dqdt_dot
-
-    return np.array([y, q]).T
+        return solution
+    except Exception as e:
+        print(f"Erro na simulação com parâmetros {params}: {e}")
+        return None
 
 
 def compute_dominant_frequency(response: np.ndarray, time: np.ndarray) -> ndarray[Any, dtype[floating[Any]]]:
@@ -84,8 +66,18 @@ def compute_frequency_difference(simulated_response, target_response, time):
     return np.abs(simulated_freq - target_freq)
 
 
-def compute_reward(simulated_response, target_response):
+def compute_reward(simulated_response, target_response, time):
+    if simulated_response is None:
+        return -10000
+
     simulated_y = simulated_response[:, 0]
     mse = np.mean((simulated_y - target_response) ** 2)
-    reward = -mse
+    shape_penalty = np.mean(np.abs(np.gradient(simulated_y) - np.gradient(target_response)))
+    simulated_freq = compute_dominant_frequency(simulated_y, time)
+    target_freq = compute_dominant_frequency(target_response, time)
+    freq_diff = np.abs(simulated_freq - target_freq)
+    reward = -(mse + 0.5 * shape_penalty + 0.5 * freq_diff)
+
     return reward
+
+
