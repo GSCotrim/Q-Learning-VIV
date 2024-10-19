@@ -1,7 +1,7 @@
 import numpy as np
 from tqdm import tqdm
 
-from environment import compute_reward, simulate_system_2param
+from environment import compute_reward, simulate_system_param
 
 
 class QLearningAgent:
@@ -23,7 +23,7 @@ class QLearningAgent:
         self.n_states = len(self.params_range)
         self.q_table = self.__initialize_q_table() if q_table is None else q_table
 
-    def generate_new_2state(self, state, action):
+    def generate_new_state(self, state, action):
         if state.size != self.n_params:
             raise ValueError(f"Estado esperado com {self.n_params} parâmetros, mas recebeu {len(state)} parâmetros.")
         if action < 0 or action > (2 * self.n_params - 1):
@@ -42,18 +42,25 @@ class QLearningAgent:
         return new_state
 
     def __initialize_q_table(self):
-        return np.zeros((self.n_steps, self.n_steps, self.n_steps, self.n_actions)) - 1
+        dimensions = (self.n_steps,) * self.n_params + (self.n_actions,)
+        return np.zeros(dimensions) - 1
 
     def __select_action(self, state):
         if np.random.uniform() < self.epsilon:
             return np.random.randint(0, 2 * self.n_params)
         else:
-            q_state = self.q_table[state[0], state[1], state[2]]
+            q_state = self.q_table[tuple(state[:self.n_params])]
             return np.argmax(q_state)
 
     def __update_q_value(self, state, action, reward, next_state):
-        best_next_q_action = self.q_table[next_state[0], next_state[1], state[2]].max()
-        self.q_table[state[0], state[1], action] += self.alpha * (reward + self.gamma * best_next_q_action - self.q_table[state[0], state[1], state[2], action])
+        best_next_q_action = self.q_table[tuple(next_state[:self.n_params])].max()
+        self.q_table[tuple(state[:self.n_params]) + (action,)] += self.alpha * (reward + self.gamma * best_next_q_action - self.q_table[tuple(state[:self.n_params]) + (action,)])
+
+    def __get_new_params(self, new_state):
+        new_params = np.array([
+            self.params_range[i, new_state[i]] for i in range(self.n_params)
+        ])
+        return new_params
 
     def run(self, time, target_response, episodes=15000, steps_per_ep=1000):
         total_rewards = []
@@ -64,14 +71,9 @@ class QLearningAgent:
 
             for _ in range(steps_per_ep):
                 action = self.__select_action(state)
-                new_state = self.generate_new_2state(state, action)
-
-                new_params = np.array([
-                    self.params_range[0, new_state[0]],
-                    self.params_range[1, new_state[1]],
-                    self.params_range[2, new_state[2]]
-                ])
-                simulated_response = simulate_system_2param(new_params, time)
+                new_state = self.generate_new_state(state, action)
+                new_params = self.__get_new_params(new_state)
+                simulated_response = simulate_system_param(new_params, time)
                 reward = compute_reward(simulated_response, target_response)
                 total_reward += reward
                 self.__update_q_value(state, action, reward, new_state)
