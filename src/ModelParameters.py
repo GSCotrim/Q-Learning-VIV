@@ -48,12 +48,12 @@ class ModelParameters:
     epsilon_num: float
     a_num: float
     xi_num: float
+    fluid_damping_coefficient_gamma: float
     structural_angular_frequency: Optional[float] = set_structural_angular_frequency()
-    infinity_flow_velocity: Optional[float] = set_infinity_flow_velocity(structural_angular_frequency)
-    angular_frequency: Optional[float] = set_angular_frequency(infinity_flow_velocity)
-    structure_reduced_angular_frequency: Optional[float] = set_structure_reduced_angular_frequency(structural_angular_frequency, angular_frequency)
-    fluid_damping_coefficient: Optional[float] = set_fluid_damping_coefficient()
     fluid_mass: Optional[float] = set_fluid_mass()
+    infinity_flow_velocity: Optional[float] = set_infinity_flow_velocity(structural_angular_frequency)
     structure_mass: Optional[float] = set_structure_mass(fluid_mass)
+    angular_frequency: Optional[float] = set_angular_frequency(infinity_flow_velocity)
+    structure_reduced_angular_frequency_delta: Optional[float] = set_structure_reduced_angular_frequency(structural_angular_frequency, angular_frequency)
     nondimensional_mass_ratio: Optional[float] = set_nondimensional_mass_ratio(fluid_mass, structure_mass)
     mass_number_M: Optional[float] = set_M(nondimensional_mass_ratio)

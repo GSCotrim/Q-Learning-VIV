@@ -17,9 +17,9 @@ class QLearningAgent:
         self.n_steps = 20
         self.epsilon_range = np.arange(0.05, 1.00 + 1e-5, (1 - 0.05) / (self.n_steps - 1))
         self.A_range = np.arange(1.0, 20.0 + 1e-5, (20.0 - 1.0) / (self.n_steps - 1))
-        self.xi_num_range = np.linspace(0.05e-3, 0.5e-2, self.n_steps)
-        self.structural_angular_frequency_range = np.arange(.1, 10.0 + 1e-5, (10.0 - .1) / (self.n_steps - 1))
-        self.params_range = np.stack((self.epsilon_range, self.A_range, self.xi_num_range, self.structural_angular_frequency_range))
+        self.xi_num_range = np.linspace(5e-5, 5e-3, self.n_steps)
+        self.fluid_damping_coefficient_gamma_range = np.arange(.05, 1.0 + 1e-5, (1.0 - .05) / (self.n_steps - 1))
+        self.params_range = np.stack((self.epsilon_range, self.A_range, self.xi_num_range, self.fluid_damping_coefficient_gamma_range))
         self.n_actions = 2 * self.n_params
         self.n_states = len(self.params_range)
         self.q_table = self.__initialize_q_table() if q_table is None else q_table

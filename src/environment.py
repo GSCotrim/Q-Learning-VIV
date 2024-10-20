@@ -17,10 +17,10 @@ def cylinder_wake_oscillator(x, t, csi, delta, gamma, mu, epsilon, M, MMinv):
 
 
 def simulate_system_param(params, ts):
-    model_parameters = ModelParameters(epsilon_num=params[0],
-                                       a_num=params[1],
-                                       xi_num=params[2],
-                                       structural_angular_frequency=params[3]
+    model_parameters = ModelParameters(epsilon_num = params[0],
+                                       a_num = params[1],
+                                       xi_num = params[2],
+                                       fluid_damping_coefficient_gamma = params[3]
                                        )
 
     # matrix for van der pol - dependends on A_num == params[1]
@@ -30,8 +30,8 @@ def simulate_system_param(params, ts):
 
     # call ODE solver
     xs = ode_solver(ts, model_parameters.xi_num,
-                    model_parameters.structure_reduced_angular_frequency,
-                    model_parameters.fluid_damping_coefficient,
+                    model_parameters.structure_reduced_angular_frequency_delta,
+                    model_parameters.fluid_damping_coefficient_gamma,
                     model_parameters.nondimensional_mass_ratio,
                     model_parameters.epsilon_num,
                     model_parameters.mass_number_M, MMinv)
