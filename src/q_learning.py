@@ -13,20 +13,22 @@ class QLearningAgent:
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
         self.initial_conditions = initial_conditions
-        self.n_params = 6
-        self.n_steps = 23
+        self.n_params = 7
+        self.n_steps = 14
         self.epsilon_range = np.arange(0.05, 1.00 + 1e-5, (1 - 0.05) / (self.n_steps - 1))
         self.A_range = np.arange(1.0, 20.0 + 1e-5, (20.0 - 1.0) / (self.n_steps - 1))
         self.xi_num_range = np.arange(1.0e-5, 1.0e-3 + 1e-5, (1.0e-3 - 1.0e-5) / (self.n_steps - 1))
         self.fluid_damping_coefficient_gamma_range = np.arange(0.05, 1.0 + 1e-5, (1.0 - 0.05) / (self.n_steps - 1))
         self.nondimensional_mass_ratio_mu_range = np.arange(0.1, 5.0 + 1e-5, (5.0 - 0.1) / (self.n_steps - 1))
         self.structure_reduced_angular_frequency_delta_range = np.linspace(0.5, 2.0, self.n_steps)
+        self.mass_number_M_range = np.arange(1e-3, 1e-1 + 1e-5, (1e-1 - 1e-3) / (self.n_steps - 1))
         self.params_range = np.stack((self.epsilon_range,
                                       self.A_range,
                                       self.xi_num_range,
                                       self.fluid_damping_coefficient_gamma_range,
                                       self.nondimensional_mass_ratio_mu_range,
-                                      self.structure_reduced_angular_frequency_delta_range
+                                      self.structure_reduced_angular_frequency_delta_range,
+                                      self.mass_number_M_range
                                       ))
         self.n_actions = 2 * self.n_params
         self.n_states = len(self.params_range)
