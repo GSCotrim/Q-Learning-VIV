@@ -13,12 +13,13 @@ class QLearningAgent:
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
         self.initial_conditions = initial_conditions
-        self.n_params = 3
+        self.n_params = 4
         self.n_steps = 20
         self.epsilon_range = np.arange(0.05, 1.00 + 1e-5, (1 - 0.05) / (self.n_steps - 1))
         self.A_range = np.arange(1.0, 20.0 + 1e-5, (20.0 - 1.0) / (self.n_steps - 1))
         self.xi_num_range = np.linspace(0.05e-3, 0.5e-2, self.n_steps)
-        self.params_range = np.stack((self.epsilon_range, self.A_range, self.xi_num_range))
+        self.structural_angular_frequency_range = np.arange(.1, 10.0 + 1e-5, (10.0 - .1) / (self.n_steps - 1))
+        self.params_range = np.stack((self.epsilon_range, self.A_range, self.xi_num_range, self.structural_angular_frequency_range))
         self.n_actions = 2 * self.n_params
         self.n_states = len(self.params_range)
         self.q_table = self.__initialize_q_table() if q_table is None else q_table

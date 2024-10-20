@@ -34,7 +34,8 @@ def plot_results(total_rewards, t, simulated_response_final_refined, target_resp
 
 
 def build_target_response(time):
-    reference_response = simulate_system_param(np.array((0.4, 10.0, .07e-2)), time)
+    target_response = np.array((0.4, 10.0, .07e-2, 1.8850))
+    reference_response = simulate_system_param(target_response, time)
     noise_lvl = 0.1
     reference_response[:, 0] += np.random.normal(0, noise_lvl, reference_response.shape[0])
     reference_response[:, 1] += np.random.normal(0, noise_lvl / .15, reference_response.shape[0])
@@ -52,14 +53,15 @@ def run_q_learning_process():
         epsilon_decay=0.9995,  ## decay of exploration probability
         epsilon_min=0.05,  ## final asymptotic value of exploration probability
     )
-    total_rewards, q_table = agent.run(time, target_response, episodes=500, steps_per_ep=4)
+    total_rewards, q_table = agent.run(time, target_response, episodes=4000, steps_per_ep=4)
 
     ijk = np.unravel_index(q_table.argmax(), q_table.shape)
     print(f"Final STATE: {ijk}")
     final_params = np.array([
         agent.params_range[0, ijk[0]],
         agent.params_range[1, ijk[1]],
-        agent.params_range[2, ijk[2]]
+        agent.params_range[2, ijk[2]],
+        agent.params_range[3, ijk[3]]
     ])
     print(f"Final PARAMS: {final_params}")
 
