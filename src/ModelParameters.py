@@ -55,5 +55,5 @@ class ModelParameters:
     structure_mass: Optional[float] = set_structure_mass(fluid_mass)
     angular_frequency: Optional[float] = set_angular_frequency(infinity_flow_velocity)
     structure_reduced_angular_frequency_delta: Optional[float] = set_structure_reduced_angular_frequency(structural_angular_frequency, angular_frequency)
-    nondimensional_mass_ratio: Optional[float] = set_nondimensional_mass_ratio(fluid_mass, structure_mass)
-    mass_number_M: Optional[float] = set_M(nondimensional_mass_ratio)
+    nondimensional_mass_ratio_mu: Optional[float] = set_nondimensional_mass_ratio(fluid_mass, structure_mass)
+    mass_number_M: Optional[float] = set_M(nondimensional_mass_ratio_mu)

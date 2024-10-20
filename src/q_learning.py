@@ -13,13 +13,18 @@ class QLearningAgent:
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
         self.initial_conditions = initial_conditions
-        self.n_params = 4
+        self.n_params = 5
         self.n_steps = 20
         self.epsilon_range = np.arange(0.05, 1.00 + 1e-5, (1 - 0.05) / (self.n_steps - 1))
         self.A_range = np.arange(1.0, 20.0 + 1e-5, (20.0 - 1.0) / (self.n_steps - 1))
         self.xi_num_range = np.linspace(5e-5, 5e-3, self.n_steps)
-        self.fluid_damping_coefficient_gamma_range = np.arange(.05, 1.0 + 1e-5, (1.0 - .05) / (self.n_steps - 1))
-        self.params_range = np.stack((self.epsilon_range, self.A_range, self.xi_num_range, self.fluid_damping_coefficient_gamma_range))
+        self.fluid_damping_coefficient_gamma_range = np.arange(0.05, 1.0 + 1e-5, (1.0 - 0.05) / (self.n_steps - 1))
+        self.nondimensional_mass_ratio_mu_range = np.arange(0.1, 5.0 + 1e-5, (5.0 - 0.1) / (self.n_steps - 1))
+        self.params_range = np.stack((self.epsilon_range,
+                                      self.A_range,
+                                      self.xi_num_range,
+                                      self.fluid_damping_coefficient_gamma_range,
+                                      self.nondimensional_mass_ratio_mu_range))
         self.n_actions = 2 * self.n_params
         self.n_states = len(self.params_range)
         self.q_table = self.__initialize_q_table() if q_table is None else q_table
@@ -55,7 +60,8 @@ class QLearningAgent:
 
     def __update_q_value(self, state, action, reward, next_state):
         best_next_q_action = self.q_table[tuple(next_state[:self.n_params])].max()
-        self.q_table[tuple(state[:self.n_params]) + (action,)] += self.alpha * (reward + self.gamma * best_next_q_action - self.q_table[tuple(state[:self.n_params]) + (action,)])
+        self.q_table[tuple(state[:self.n_params]) + (action,)] += self.alpha * (
+                reward + self.gamma * best_next_q_action - self.q_table[tuple(state[:self.n_params]) + (action,)])
 
     def __get_new_params(self, new_state):
         new_params = np.array([
