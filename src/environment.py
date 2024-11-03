@@ -1,90 +1,67 @@
-from typing import Any
-
 import numpy as np
-from numpy import ndarray, dtype, floating
-from scipy.fft import fft
+from scipy.integrate import odeint
+
+from src.ModelParameters import ModelParameters
 
 
-def compute_dydt(y, y_dot, delta, gamma, mu, s, xi):
-    dydt = y_dot
-    dydt_dot = -(2 * xi * delta + (gamma / mu if mu != 0 else 0)) * y_dot - (delta ** 2) * y + s
-    return dydt, dydt_dot
+# oscilador de Facchinetti com van der Pol
+def cylinder_wake_oscillator(x, t, csi, delta, gamma, mu, epsilon, M, MMinv):
+    # 4 positions x = [ y, ydot, q, qdot ]
+    BB = np.array([[0.0, 1.0, 0, 0],
+                   [-delta ** 2, -(2.0 * csi * delta + gamma / mu), M, 0.0],
+                   [0.0, 0.0, 0.0, 1.0],
+                   [0, 0, -1, -epsilon * (x[2] ** 2.0 - 1.0)]])
+    ## MM inv eh definido com parametros A
+    res = MMinv.dot(BB.dot(x))
+    return res
 
 
-def compute_dqdt(q, q_dot, epsilon, f):
-    dqdt = q_dot
-    dqdt_dot = - epsilon * ((q ** 2) - 1) * q_dot - q + f
-    return dqdt, dqdt_dot
+def simulate_system_param(params, ts):
+    model_parameters = ModelParameters(epsilon_num = params[0],
+                                       a_num = params[1],
+                                       xi_num = params[2],
+                                       fluid_damping_coefficient_gamma = params[3],
+                                       nondimensional_mass_ratio_mu = params[4],
+                                       structure_reduced_angular_frequency_delta = params[5],
+                                       mass_number_M = params[6]
+                                       )
+
+    # matrix for van der pol - dependends on A_num == params[1]
+    MM = np.eye(4)
+    MM[3, 1] = -float(model_parameters.a_num)
+    MMinv = np.linalg.inv(MM)
+
+    # call ODE solver
+    xs = ode_solver(ts, model_parameters.xi_num,
+                    model_parameters.structure_reduced_angular_frequency_delta,
+                    model_parameters.fluid_damping_coefficient_gamma,
+                    model_parameters.nondimensional_mass_ratio_mu,
+                    model_parameters.epsilon_num,
+                    model_parameters.mass_number_M,
+                    MMinv
+                    )
+
+    return xs[:, [0, 2]]  # this returns y and q
 
 
-def compute_system_dynamics(yq, params):
-    y, y_dot, q, q_dot = yq
-    if len(params) == 4:
-        epsilon, delta, gamma, mu = params
-        s, f, xi = 0, 0, 0
-    elif len(params) == 5:
-        epsilon, delta, gamma, mu, xi = params
-        s, f = 0, 0
-    elif len(params) == 7:
-        epsilon, delta, gamma, mu, s, f, xi = params
-    else:
-        raise ValueError(f"Número incorreto de parâmetros. Esperado 4, 5 ou 7, mas recebeu {len(params)}.")
-
-    dydt, dydt_dot = compute_dydt(y, y_dot, delta, gamma, mu, s, xi)
-    dqdt, dqdt_dot = compute_dqdt(q, q_dot, epsilon, f)
-
-    return [dydt, dydt_dot, dqdt, dqdt_dot]
-
-
-def simulate_system(params: list, initial_conditions: list, time_vector: np.ndarray,
-                    target_response: np.ndarray) -> np.ndarray:
-    if isinstance(initial_conditions[0], (list, tuple)) and len(initial_conditions[0]) == 4:
-        y0, y_dot0, q0, q_dot0 = initial_conditions[0]
-    else:
-        raise ValueError("initial_conditions tem um formato inesperado. Esperava uma lista ou tupla de 4 valores.")
-
-    y0 = target_response[0]
-    y = np.zeros_like(time_vector)
-    y_dot = np.zeros_like(time_vector)
-    q = np.zeros_like(time_vector)
-    q_dot = np.zeros_like(time_vector)
-
-    y[0], y_dot[0], q[0], q_dot[0] = y0, y_dot0, q0, q_dot0
-    epsilon, delta, gamma, mu, s, f, xi = params
-
-    for i in range(1, len(time_vector)):
-        dydt, dydt_dot = compute_dydt(y[i - 1], y_dot[i - 1], delta, gamma, mu, s, xi)
-        dqdt, dqdt_dot = compute_dqdt(q[i - 1], q_dot[i - 1], epsilon, f)
-
-        y[i] = y[i - 1] + dydt * (time_vector[i] - time_vector[i - 1])
-        y_dot[i] = y_dot[i - 1] + dydt_dot * (time_vector[i] - time_vector[i - 1])
-        q[i] = q[i - 1] + dqdt * (time_vector[i] - time_vector[i - 1])
-        q_dot[i] = q_dot[i - 1] + dqdt_dot * (time_vector[i] - time_vector[i - 1])
-
-    return np.array([y, y_dot, q, q_dot]).T
-
-
-def compute_dominant_frequency(response: np.ndarray, time_vector: np.ndarray) -> ndarray[Any, dtype[floating[Any]]]:
-    response = response[:, 0] if response.ndim > 1 else response
-    response_fft = fft(response)
-    freqs = np.fft.fftfreq(len(response), d=(time_vector[1] - time_vector[0]))
-    dominant_freq = freqs[np.argmax(np.abs(response_fft))]
-    return dominant_freq
-
-
-def compute_amplitude_variance(simulated_response):
-    return np.var(simulated_response[:, 0]) if simulated_response.ndim > 1 else np.var(simulated_response)
-
-
-def compute_frequency_difference(simulated_response, target_response, time_vector):
-    simulated_freq = compute_dominant_frequency(simulated_response, time_vector)
-    target_freq = compute_dominant_frequency(target_response, time_vector)
-    return np.abs(simulated_freq - target_freq)
-
-
-def compute_reward(simulated_response, target_response, time_vector):
-    mse = np.mean((simulated_response[:, 0] - target_response) ** 2)
-    amplitude_difference = np.abs(np.mean(simulated_response[:, 0]) - np.mean(target_response))
-    freq_difference = compute_frequency_difference(simulated_response, target_response, time_vector)
-    reward = -(mse + 1.0 * amplitude_difference + 0.5 * freq_difference)
+def compute_reward(simulated_response, target_response):
+    simulated_y = simulated_response[:, 0]
+    mse = np.mean((simulated_y - target_response) ** 2)
+    reward = -mse
     return reward
+
+
+def ode_solver(ts, xi_num, structure_reduced_angular_frequency, fluid_damping_coefficient, nondimensional_mass_ratio,
+               epsilon_num, mass_number_M, MMinv):
+    return odeint(
+        cylinder_wake_oscillator,
+        (.5, 1e-10, 1e-10, 1e-10),  # initial_conditions
+        ts,
+        args=(
+            xi_num, structure_reduced_angular_frequency,
+            fluid_damping_coefficient,
+            nondimensional_mass_ratio,
+            epsilon_num,
+            mass_number_M,
+            MMinv)
+    )

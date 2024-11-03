@@ -1,78 +1,50 @@
-import os
+import numpy as np
 
-import matplotlib.pyplot as plt
-import pandas as pd
-
-from environment import simulate_system
 from q_learning import QLearningAgent
-
-
-def load_data(file_path):
-    try:
-        data = pd.read_csv(file_path)
-        if 'initial_conditions' not in data.columns:
-            print("Erro: A coluna 'initial_conditions' não foi encontrada no arquivo CSV.")
-            return None, None, None
-        initial_conditions = data['initial_conditions'].apply(eval).apply(lambda x: tuple(map(float, x))).values
-        t = data['t'].values
-        if 'target_response' in data.columns:
-            target_response = data['target_response'].values
-        else:
-            print("Erro: A coluna 'target_response' não foi encontrada no arquivo CSV.")
-            return None, None, None
-    except FileNotFoundError:
-        print("Arquivo não encontrado. Verifique o caminho do arquivo.")
-        return None, None, None
-    except pd.errors.EmptyDataError:
-        print("Arquivo CSV está vazio.")
-        return None, None, None
-    except Exception as e:
-        print(f"Ocorreu um erro ao ler o arquivo: {e}")
-        return None, None, None
-
-    return initial_conditions, t, target_response
-
-
-def initialize_agent():
-    return QLearningAgent(alpha=0.05, gamma=0.95, epsilon=0.2)
-
-
-def run_q_learning(agent, initial_conditions, t, target_response, episodes=15000):
-    total_rewards, q_table = agent.run(initial_conditions, t, target_response, episodes)
-    return total_rewards, q_table
-
-
-def plot_results(total_rewards, t, simulated_response_final_refined, target_response):
-    plt.plot(total_rewards)
-    plt.title("Evolução das Recompensas ao Longo dos Episódios (Recompensa Refinada)")
-    plt.xlabel("Episódios")
-    plt.ylabel("Recompensa Total")
-    plt.show()
-
-    plt.plot(t, simulated_response_final_refined[:, 0], label="Resposta Simulada (Ajustada - Refinada)")
-    plt.plot(t, target_response, label="Resposta Alvo (Lock-in)")
-    plt.xlabel("Tempo")
-    plt.ylabel("Amplitude")
-    plt.legend()
-    plt.title("Comparação da Resposta Simulada com a Resposta Alvo (Lock-in - Refinado)")
-    plt.show()
+from src.target_response_generator import build_target_response
+from src.environment import simulate_system_param
+from src.results_plotter import plot_results
 
 
 def run_q_learning_process():
-    file_path = os.path.abspath("data/dados_viv_simulados.csv")
-    initial_conditions, t, target_response = load_data(file_path)
-    if initial_conditions is None or t is None or target_response is None:
-        return
+    time = np.linspace(0, 150, 250 + 1)
+    target_response = build_target_response(time)
 
-    agent = initialize_agent()
-    total_rewards, q_table = run_q_learning(agent, initial_conditions, t, target_response)
+    agent = QLearningAgent(
+        alpha=0.8,  ## learning rate
+        gamma=0.95,  ## discount parameter
+        epsilon=0.25,  ## exploration probability initially
+        epsilon_decay=0.9995,  ## decay of exploration probability
+        epsilon_min=0.05,  ## final asymptotic value of exploration probability
+    )
+    total_rewards, q_table = agent.run(time, target_response, episodes=1500, steps_per_ep=10)
 
-    final_params_refined = max(q_table, key=lambda x: max(q_table[x].values()))
-    print(
-        f"Parâmetros ajustados após o treinamento refinado: y={final_params_refined[0]}, y_dot={final_params_refined[1]}, q={final_params_refined[2]}, q_dot={final_params_refined[3]}")
+    ijk = np.unravel_index(q_table.argmax(), q_table.shape)
+    print(f"Final STATE: {ijk}")
 
-    simulated_response_final_refined = simulate_system(final_params_refined, initial_conditions, t, target_response)
-    plot_results(total_rewards, t, simulated_response_final_refined, target_response)
+    final_params = np.array([
+        agent.params_range[0, ijk[0]],
+        agent.params_range[1, ijk[1]],
+        agent.params_range[2, ijk[2]],
+        agent.params_range[3, ijk[3]],
+        agent.params_range[4, ijk[4]],
+        agent.params_range[5, ijk[5]],
+        agent.params_range[6, ijk[6]]
+    ])
+
+    params_map = {
+        'epsilon_num': final_params[0],
+        'a_num': final_params[1],
+        'xi_num': final_params[2],
+        'fluid_damping_coefficient_gamma': final_params[3],
+        'nondimensional_mass_ratio_mu': final_params[4],
+        'structure_reduced_angular_frequency_delta': final_params[5],
+        'mass_number_M': final_params[6]
+    }
+
+    print(params_map)
+    simulated_response = simulate_system_param(final_params, time)
+    plot_results(total_rewards, time, simulated_response, target_response)
 
 
 if __name__ == "__main__":

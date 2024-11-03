@@ -1,96 +1,96 @@
-import random
-
 import numpy as np
 from tqdm import tqdm
 
-from environment import simulate_system, compute_reward
-
-
-def is_done(total_reward):
-    return total_reward > -1.0
-
-
-def generate_new_params(state, action):
-    new_params = list(state[action])
-
-    if len(new_params) == 4:
-        new_params.append(0.1)
-    if len(new_params) == 5:
-        new_params.extend([0.0, 0.0])
-
-    new_params[action] += random.uniform(-0.01, 0.01)
-    new_params[action] = np.clip(new_params[action], -0.5, 0.5)
-
-    return tuple(new_params)
+from environment import compute_reward, simulate_system_param
 
 
 class QLearningAgent:
-    def __init__(self, alpha=0.1, gamma=0.9, epsilon=0.1, epsilon_decay=0.9995, epsilon_min=0.05):
+    def __init__(self, alpha, gamma, epsilon, epsilon_decay, epsilon_min, initial_conditions=(.5, 1e-10, 1e-10, 1e-10),
+                 q_table=None):
         self.alpha = alpha
         self.gamma = gamma
-        self.epsilon_min = epsilon_min
         self.epsilon = epsilon
+        self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
-        self.q_table = {}
+        self.initial_conditions = initial_conditions
+        self.n_params = 7
+        self.n_steps = 14
+        self.epsilon_range = np.arange(0.05, 1.00 + 1e-5, (1 - 0.05) / (self.n_steps - 1))
+        self.A_range = np.arange(1.0, 20.0 + 1e-5, (20.0 - 1.0) / (self.n_steps - 1))
+        self.xi_num_range = np.arange(1.0e-5, 1.0e-3 + 1e-5, (1.0e-3 - 1.0e-5) / (self.n_steps - 1))
+        self.fluid_damping_coefficient_gamma_range = np.arange(0.05, 1.0 + 1e-5, (1.0 - 0.05) / (self.n_steps - 1))
+        self.nondimensional_mass_ratio_mu_range = np.arange(0.1, 5.0 + 1e-5, (5.0 - 0.1) / (self.n_steps - 1))
+        self.structure_reduced_angular_frequency_delta_range = np.linspace(0.5, 2.0, self.n_steps)
+        self.mass_number_M_range = np.arange(1e-3, 1e-1 + 1e-5, (1e-1 - 1e-3) / (self.n_steps - 1))
+        self.params_range = np.stack((self.epsilon_range,
+                                      self.A_range,
+                                      self.xi_num_range,
+                                      self.fluid_damping_coefficient_gamma_range,
+                                      self.nondimensional_mass_ratio_mu_range,
+                                      self.structure_reduced_angular_frequency_delta_range,
+                                      self.mass_number_M_range
+                                      ))
+        self.n_actions = 2 * self.n_params
+        self.n_states = len(self.params_range)
+        self.q_table = self.__initialize_q_table() if q_table is None else q_table
+
+    def generate_new_state(self, state, action):
+        if state.size != self.n_params:
+            raise ValueError(f"Estado esperado com {self.n_params} parâmetros, mas recebeu {len(state)} parâmetros.")
+        if action < 0 or action > (2 * self.n_params - 1):
+            raise ValueError(f"Ação esperada pertence a [0,{2 * self.n_params - 1}] mas ação={action}.")
+
+        new_state = state.copy()
+        dir_action = 1 if action % 2 else -1
+        which_param = action // 2
+
+        new_state[which_param] = (
+            (state[which_param] // self.n_steps * self.n_steps + (
+                    state[which_param] % self.n_steps + self.n_steps - 1) % self.n_steps)
+            if (dir_action > 0)
+            else (state[which_param] // self.n_steps * self.n_steps + (state[which_param] + 1) % self.n_steps)
+        )
+        return new_state
+
+    def __initialize_q_table(self):
+        dimensions = (self.n_steps,) * self.n_params + (self.n_actions,)
+        return np.zeros(dimensions) - 1
 
     def __select_action(self, state):
-        if random.uniform(0, 1) < self.epsilon:
-            return random.choice(list(self.q_table[state].keys()))
+        if np.random.uniform() < self.epsilon:
+            return np.random.randint(0, 2 * self.n_params)
         else:
-            return max(self.q_table[state], key=self.q_table[state].get)
+            q_state = self.q_table[tuple(state[:self.n_params])]
+            return np.argmax(q_state)
 
     def __update_q_value(self, state, action, reward, next_state):
-        best_next_action = max(self.q_table[next_state], key=self.q_table[next_state].get)
-        self.q_table[state][action] += self.alpha * (
-                reward + self.gamma * self.q_table[next_state][best_next_action] - self.q_table[state][action])
+        best_next_q_action = self.q_table[tuple(next_state[:self.n_params])].max()
+        self.q_table[tuple(state[:self.n_params]) + (action,)] += self.alpha * (
+                reward + self.gamma * best_next_q_action - self.q_table[tuple(state[:self.n_params]) + (action,)])
 
-    def __initialize_q_values(self, state):
-        if state not in self.q_table:
-            self.q_table[state] = {i: 0 for i in range(4)}
+    def __get_new_params(self, new_state):
+        new_params = np.array([
+            self.params_range[i, new_state[i]] for i in range(self.n_params)
+        ])
+        return new_params
 
-    def __determine_next_state(self, new_params):
-        next_state = tuple(new_params)
-        if next_state not in self.q_table:
-            self.q_table[next_state] = {i: 0 for i in range(4)}
-        return next_state
-
-    def __compute_reward_and_next_state(self, new_params, initial_conditions, time_vector, target_response):
-        simulated_response = simulate_system(new_params, initial_conditions, time_vector, target_response)
-        reward = compute_reward(simulated_response, target_response, time_vector)
-        next_state = self.__determine_next_state(new_params)
-        return reward, next_state
-
-    def __take_action(self, state, initial_conditions, time_vector, target_response):
-        self.__initialize_q_values(state)
-        action = self.__select_action(state)
-        new_params = generate_new_params(state, action)
-        simulated_response = simulate_system(new_params, initial_conditions, time_vector, target_response)
-        reward = compute_reward(simulated_response, target_response, time_vector)
-        next_state = self.__determine_next_state(new_params)
-        self.__update_q_value(state, action, reward, next_state)
-        self.epsilon *= self.epsilon_decay
-
-        return next_state, reward
-
-    def __run_episode(self, initial_conditions, time_vector, target_response, max_steps):
-        state = tuple(initial_conditions)
-        total_reward = 0
-        step = 0
-        done = False
-
-        while not done:
-            state, reward = self.__take_action(state, initial_conditions, time_vector, target_response)
-            total_reward += reward
-            step += 1
-            done = is_done(total_reward) or step >= max_steps
-
-        return total_reward
-
-    def run(self, initial_conditions, time_vector, target_response, episodes=5000, max_steps=1000):
+    def run(self, time, target_response, episodes=15000, steps_per_ep=1000):
         total_rewards = []
-        with tqdm(total=episodes, desc="Q-Learning Progress", dynamic_ncols=True) as pbar:
-            for _ in range(episodes):
-                total_reward = self.__run_episode(initial_conditions, time_vector, target_response, max_steps)
-                total_rewards.append(total_reward)
-                pbar.update(1)
-        return np.array(total_rewards), self.q_table
+
+        for _ in tqdm(range(episodes), desc="Q-Learning Progress"):
+            total_reward = 0
+            state = np.random.randint(0, self.n_steps, self.n_params)
+
+            for _ in range(steps_per_ep):
+                action = self.__select_action(state)
+                new_state = self.generate_new_state(state, action)
+                new_params = self.__get_new_params(new_state)
+                simulated_response = simulate_system_param(new_params, time)
+                reward = compute_reward(simulated_response, target_response)
+                total_reward += reward
+                self.__update_q_value(state, action, reward, new_state)
+                state = new_state.copy()
+
+            total_rewards.append(total_reward)
+
+        return total_rewards, self.q_table
